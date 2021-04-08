@@ -1,30 +1,31 @@
-using Distributed
+# using Distributed
 # using SharedArrays
+using Strided
 
 
 function compute_array(m, n)
-    x = zeros(m, n)
-    for i = 0:m - 1
+    @inbounds x = zeros(Int32, (m, n))
+    @inbounds for i = 0:m - 1
         for j = 0:n - 1
-            x[i+1, j+1] = Int32(i*i + j*j)
+            x[i+1, j+1] = i*i + j*j
         end
     end
     return x
 end
 
 function compute_array_threaded(m, n)
-    x = zeros(m, n)
-    Threads.@threads for i = 0:m - 1
+    @inbounds x = zeros(Int32, (m, n))
+    @inbounds Threads.@threads for i = 0:m - 1
         for j = 0:n - 1
-            x[i+1, j+1] = Int32(i*i + j*j)
+            x[i+1, j+1] = i*i + j*j
         end
     end
     return x
 end
 
 # function compute_array_distributed(m, n)
-#     x = zero(SharedArray{Int64}((m, n)))
-#     @distributed for i = 0:m - 1
+#     x = SharedArray(zeros(Int32, (m, n)))
+#     @inbounds @distributed for i = 0:m - 1
 #         for j = 0:n - 1
 #             x[i+1, j+1] = Int32(i*i + j*j)
 #         end
@@ -34,8 +35,28 @@ end
 
 
 function compute_array_list(m, n)
-    x = [Int32(i*i + j*j) for i in 0:m-1, j in 0:n-1]
+    x = @inbounds @strided [Int32(i*i + j*j) for i in 0:m-1, j in 0:n-1]
     return x
+end
+
+
+function compute_array_fill(m, n)
+    @inbounds x = [Int32(i) for i in 0:m-1].^2
+    @inbounds y = [Int32(j) for j in 0:n-1].^2
+    @inbounds return @strided broadcast(+, x, y')
+end
+
+function compute_array_collect(m, n)
+    return collect(Int32, 0:m-1).^2 .+ (collect(Int32, 0:n-1).^2)'
+end
+
+
+function compute_array_strided(m, n)
+    x = collect(Int32, 0:m-1).^2 .+ zeros(Int8, n)'
+    y = zeros(Int8, m) .+ (collect(Int32, 0:n-1).^2)'
+    @strided t = x .+ y
+    t = reshape(t, (m, n))
+    return t
 end
 #
 # function compute_array_list_unitrange(m::Int16, n::Int16)
@@ -58,51 +79,71 @@ end
 #     return x
 # end
 
-l = Int16(15000)
-k = Int16(15000)
+l = Int32(15000)
+k = Int32(15000)
 n_loop = 5
-# compute_array(10, 10)
-# compute_array_threaded(10, 10)
-# p = compute_array_distributed(10, 10)
+compute_array(Int32(150), Int32(150))
+compute_array_threaded(Int32(150), Int32(150))
+# compute_array_distributed(Int16(150), Int16(150))
 # println(p)
-compute_array_list(Int16(150), Int16(150))
+compute_array_list(Int32(150), Int32(150))
+compute_array_fill(Int32(150), Int32(150))
+compute_array_collect(Int32(150), Int32(150))
+compute_array_strided(Int32(150), Int32(150))
+
+
 # compute_array_list_unitrange(Int16(150), Int16(150))
 # compute_array_list_steprange(Int16(150), Int16(150))
 
 
 # s = time()
-# for i = 1:n_loop
+# @time for i = 1:n_loop
 #     p = compute_array(l, k)
 #     println(p[l, k])
-#     println(typeof(p[l, k]))
+# #     println(typeof(p[l, k]))
 # end
 # println(time() - s)
 
-# s = time()
-# for i = 1:n_loop
+# @time for i = 1:n_loop
 #     p = compute_array_threaded(l, k)
 #     println(p[l, k])
-#     println(typeof(p[l, k]))
+#     # println(typeof(p[l, k]))
+# end
+
+# @time for i = 1:n_loop
+#     p = compute_array_distributed(l, k)
+#     # println(p)
+#     # println(p[l, k])
+#     # println(typeof(p[l, k]))
+# end
+
+# s = time()
+# @time for i = 1:n_loop
+#     p = compute_array_list(l, k)
+#     println(p[l, k])
+#     # println(typeof(p[l, k]))
 # end
 # println(time() - s)
 
-# s = time()
-# for i = 1:n_loop
-#     p = compute_array_distributed(Int64(l), Int64(k))
-# #     println(p)
-# #     println(p[l, k])
-#     println(typeof(p[l, k]))
-#     end
-# println(time() - s)
-
-s = time()
-for i = 1:n_loop
-    p = compute_array_list(l, k)
+@time for i = 1:n_loop
+    p = compute_array_fill(l, k)
     println(p[l, k])
     # println(typeof(p[l, k]))
 end
-println(time() - s)
 #
+@time for i = 1:n_loop
+    p = compute_array_collect(l, k)
+    println(p[l, k])
+    # println(typeof(p[l, k]))
+end
+
+
+# @time for i = 1:n_loop
+#     p = compute_array_strided(l, k)
+#     println(p[l, k])
+#     # println(typeof(p[l, k]))
+# end
+
 # s = time()
 # for i = 1:n_loop
 #     p = compute_array_list_unitrange(l, k)
