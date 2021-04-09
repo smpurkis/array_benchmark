@@ -12,6 +12,7 @@ from jax import jit
 
 pyximport.install()
 from compute_utils import *
+import array_benchmark_pythran
 
 
 print("Num GPUs Available: ", len(tf.config.list_physical_devices('GPU')))
@@ -24,19 +25,17 @@ def timeit(n=10):
     """
     Decorator to run function n times and print out the total time elapsed.
     """
-
     def dec(func):
         @functools.wraps(func)
         def wrapped(*args, **kwargs):
             t0 = time()
             for i in range(n):
-                # print(func(*args, **kwargs)[-1, -1])
+                # func(*args, **kwargs)
                 print(func(*args, **kwargs)[-1, -1])
             print("%s iterated %d times\nTime elapsed %.3fs\n" % (
                 func.__name__, n, time() - t0))
 
         return wrapped
-
     return dec
 
 
@@ -45,12 +44,6 @@ def compute_tf(m, n):
     x1 = tf.range(0, m - 1, 1) ** 2
     x2 = tf.range(0, n - 1, 1) ** 2
     return x1[:, None] + x2[None, :]
-
-
-@tf.function
-def compute_tf_my(m, n):
-    x = tf.reshape(tf.range(m), (-1, 1)) ** 2 + tf.range(n) ** 2
-    return x
 
 
 @tf.function
@@ -72,8 +65,8 @@ def compute_torch_my(m, n):
 
 # @numba.jit(forceobj=True)
 def compute_torch_my_int32(m, n):
-    j = torch.arange(m, dtype=torch.int32)
-    k = torch.arange(n, dtype=torch.int32)
+    j = torch.arange(m, dtype=torch.int32, device="cpu")
+    k = torch.arange(n, dtype=torch.int32, device="cpu")
     x = torch.reshape(j, (-1, 1)) ** 2 + k ** 2
     return x
 
@@ -176,9 +169,16 @@ compute_numpy_range_numba_fastmath(10, 10)
 #                                                            torch.arange(10, dtype=torch.int32)))
 m2, n2 = jnp.arange(10), jnp.arange(10)
 t = jit(compute_jax_range_arange_input)(m2, n2)
-m = 15000
-n = 15000
+m = 10000
+n = 10000
 n_loop = 5
+
+# from time import time
+# t = 10000
+# s = time()
+# print(compute_cython_memview_two_c_contigious(t, t)[t-1, t-1])
+# print(time() - s)
+
 
 # timeit(n=n_loop)(compute_numpy)(m, n)
 # timeit(n=n_loop)(compute_numpy_range)(m, n)
@@ -190,7 +190,7 @@ timeit(n=n_loop)(compute_numpy_range_int32)(m, n)
 #     t = jit(compute_jax_range_arange_input)(m2, n2)
 # print(f"compute_torch_my_int32_tensor_input_jit {time() - t0}")
 # timeit(n=n_loop)(compute_jax_range_arange_input)(jnp.arange(m), jnp.arange(n))
-timeit(n=n_loop)(compute_jax_range)(m, n)
+# timeit(n=n_loop)(compute_jax_range)(m, n)
 
 # timeit(n=n_loop)(compute_numpy_range_numba)(m, n)
 # timeit(n=n_loop)(compute_numba)(m, n)
@@ -205,11 +205,12 @@ timeit(n=n_loop)(compute_numba_parallel_two)(m, n)
 # timeit(n=n_loop)(compute_cython_memview_no_prange)(m, n)
 # timeit(n=n_loop)(compute_cython_memview_two)(m, n)
 timeit(n=n_loop)(compute_cython_memview_two_c_contigious)(m, n)
+# timeit(n=n_loop)(array_benchmark_pythran.compute_benchmark)(m, n)
 # timeit(n=n_loop)(compute_cython_memview_two_Py_ssize_t)(m, n)
 # timeit(n=n_loop)(compute_cython_memview_one)(m, n)
 # timeit(n=n_loop)(compute_cython_memview_no_checks)(m, n)
-# timeit(n=n_loop)(compute_tf)(tf.constant(m), tf.constant(n))
-timeit(n=n_loop)(compute_tf_my)(tf.constant(m), tf.constant(n))
+timeit(n=n_loop)(compute_tf)(tf.constant(m), tf.constant(n))
+# timeit(n=n_loop)(compute_tf_my)(tf.constant(m), tf.constant(n))
 # timeit(n=n_loop)(compute_torch)(torch.tensor([m]).item(), torch.tensor([n]).item())
 # timeit(n=n_loop)(compute_torch_my)(torch.tensor([m]).item(), torch.tensor([n]).item())
 timeit(n=n_loop)(compute_torch_my_int32)(torch.tensor([m]).item(), torch.tensor([n]).item())
